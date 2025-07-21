@@ -4,5 +4,6 @@ db.sqlite3
 .env
 *.sqlite3
 faces/
-**/migrations/
+**/migrations/*
 !**/migrations/__init__.py
+!**/migrations/
