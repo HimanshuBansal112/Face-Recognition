@@ -1,0 +1,8 @@
+*.pyc
+__pycache__/
+db.sqlite3
+.env
+*.sqlite3
+faces/
+**/migrations/
+!**/migrations/__init__.py

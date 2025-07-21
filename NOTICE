@@ -1,0 +1,128 @@
+<h1>Legal Notices</h1>
+
+<h2>NOTICE</h2>
+<p>This file provides attribution notices for components included in this project.</p>
+
+<p><strong>Face recognition</strong></p>
+<p>Copyright (c) 2025 Himanshu Bansal</p>
+
+<p>This project is licensed under the Apache License, Version 2.0.
+	A copy of the license is provided in the `LICENSE` file in the root of this repository.</p>
+
+<hr>
+
+<h2>Third-Party Components:</h2>
+<p>This project utilizes the following third-party software, each with its own license:</p>
+
+<div>
+	<h3>1. NumPy</h3>
+	<ul>
+		<li>Copyright (c) 2005-2024, NumPy Developers.</li>
+		<li>Licensed under the BSD 3-Clause "New" or "Revised" License.</li>
+		<li>Source: <a href="https://numpy.org/" target="_blank">https://numpy.org/</a></li>
+		<li>License details: <a href="https://github.com/numpy/numpy/blob/main/LICENSE.txt" target="_blank">https://github.com/numpy/numpy/blob/main/LICENSE.txt</a></li>
+	</ul>
+</div>
+
+<div>
+	<h3>2. OpenCV (cv2)</h3>
+	<ul>
+		<li>Copyright (c) 2000-2024, Intel Corporation.</li>
+		<li>Copyright (c) 2009-2024, NVIDIA Corporation.</li>
+		<li>Copyright (c) 2009-2024, Google, Inc.</li>
+		<li>Licensed under the Apache License, Version 2.0, or BSD 3-Clause License.</li>
+		<li>Source: <a href="https://opencv.org/" target="_blank">https://opencv.org/</a></li>
+		<li>License details: <a href="https://github.com/opencv/opencv/blob/master/LICENSE" target="_blank">https://github.com/opencv/opencv/blob/master/LICENSE</a></li>
+	</ul>
+</div>
+
+<div>
+	<h3>3. scikit-learn</h3>
+	<ul>
+		<li>Copyright (c) 2007-2024 The scikit-learn developers.</li>
+		<li>Licensed under the BSD 3-Clause "New" or "Revised" License.</li>
+		<li>Source: <a href="https://scikit-learn.org/" target="_blank">https://scikit-learn.org/</a></li>
+		<li>License details: <a href="https://github.com/scikit-learn/scikit-learn/blob/main/COPYING" target="_blank">https://github.com/scikit-learn/scikit-learn/blob/main/COPYING</a></li>
+	</ul>
+</div>
+
+<div>
+	<h3>4. PyTorch</h3>
+	<ul>
+		<li>Copyright (c) 2016-present, Facebook, Inc.</li>
+		<li>Licensed under the BSD 3-Clause "New" or "Revised" License.</li>
+		<li>Source: <a href="https://pytorch.org/" target="_blank">https://pytorch.org/</a></li>
+		<li>License details: <a href="https://github.com/pytorch/pytorch/blob/main/LICENSE" target="_blank">https://github.com/pytorch/pytorch/blob/main/LICENSE</a></li>
+	</ul>
+</div>
+
+<div>
+	<h3>5. TorchVision</h3>
+	<ul>
+		<li>Copyright (c) 2016-present, Facebook, Inc.</li>
+		<li>Licensed under the BSD 3-Clause "New" or "Revised" License.</li>
+		<li>Source: <a href="https://pytorch.org/vision/" target="_blank">https://pytorch.org/vision/</a></li>
+		<li>License details: <a href="https://github.com/pytorch/vision/blob/main/LICENSE" target="_blank">https://github.com/pytorch/vision/blob/main/LICENSE</a></li>
+	</ul>
+</div>
+
+<div>
+	<h3>6. facenet-pytorch</h3>
+	<ul>
+		<li>Copyright (c) 2019-2024 Timothy Esler</li>
+		<li>Licensed under the MIT License.</li>
+		<li>Source: <a href="https://github.com/timesler/facenet-pytorch" target="_blank">https://github.com/timesler/facenet-pytorch</a></li>
+		<li>
+			<strong>MIT License Text:</strong>
+			<pre>
+MIT License
+
+Copyright (c) 2019-2024 Timothy Esler
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+			</pre>
+		</li>
+	</ul>
+</div>
+
+<div>
+	<h3>7. Django</h3>
+	<ul>
+		<li>Copyright (c) Django Software Foundation and individual contributors.</li>
+		<li>Licensed under the BSD 3-Clause License.</li>
+		<li>Source: <a href="https://www.djangoproject.com/" target="_blank">https://www.djangoproject.com/</a></li>
+		<li>License details: <a href="https://github.com/django/django/blob/main/LICENSE" target="_blank">https://github.com/django/django/blob/main/LICENSE</a></li>
+	</ul>
+</div>
+
+<div>
+	<h3>8. Python Standard Library (os, json, base64)</h3>
+	<ul>
+		<li>Copyright (c) 2001-2024 Python Software Foundation.</li>
+		<li>Licensed under the PSF License.</li>
+		<li>Source: <a href="https://www.python.org/" target="_blank">https://www.python.org/</a></li>
+		<li>License details: <a href="https://docs.python.org/3/license.html" target="_blank">https://docs.python.org/3/license.html</a></li>
+	</ul>
+</div>
+
+<hr>
+
+<p>
+	<strong>Disclaimer:</strong> This `NOTICE` file is for informational purposes and does not modify the terms of the Apache License 2.0 or the licenses of the included third-party components. Always refer to the original license files of each component for their exact terms.
+</p>

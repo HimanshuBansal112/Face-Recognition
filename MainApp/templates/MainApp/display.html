@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera</title>
+</head>
+<body>
+	<div id="capture" style="text-align:center;">
+		<h1>Face recognition</h1>
+		<video id="video_hidden" width="800" height="600" autoplay style="transform: scaleX(-1);display:none;"></video>
+		<canvas id="canvas_hidden" width="800" height="600" style="display:none;"></canvas>
+		<canvas id="canvas" width="800" height="600"></canvas>
+		
+		<input type="hidden" id="csrf_token" value="{{ csrf_token }}">
+	</div>
+	<script>
+		document.addEventListener("DOMContentLoaded", function() {
+			const video_hidden = document.getElementById('video_hidden');
+			const canvas_hidden = document.getElementById('canvas_hidden');
+			const context_hidden = canvas_hidden.getContext('2d');
+			
+			const canvas = document.getElementById('canvas');
+			const context = canvas.getContext('2d');
+			
+			const csrfToken = document.getElementById('csrf_token').value;
+			
+			navigator.mediaDevices.getUserMedia({ video: true })
+					.then(stream => video_hidden.srcObject = stream)
+					.catch(err => console.error("Camera error:", err));
+			
+			const img = new Image();
+			img.onload = function () {
+			    canvas.width = img.width;
+			    canvas.height = img.height;
+			  
+			    context.drawImage(img, 0, 0);
+			};
+			
+			function loop() {
+				context_hidden.clearRect(0, 0, canvas_hidden.width, canvas_hidden.height);
+				context_hidden.save();
+				context_hidden.scale(-1, 1);
+				context_hidden.drawImage(video_hidden, -canvas_hidden.width, 0, canvas_hidden.width, canvas_hidden.height);
+				context_hidden.restore();
+
+				fetch('/process', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'X-CSRFToken': csrfToken
+					},
+					body: JSON.stringify({ image: canvas_hidden.toDataURL('image/png') })
+				})
+				.then(response => {
+					if (!response.ok) throw new Error("Network error");
+					return response.json();
+				})
+				.then(data => {
+					img.src = "data:image/png;base64," + data.output;
+				})
+				.catch(error => {
+					console.error('Error:', error);
+				})
+				.finally(() => {
+					const delay = 3;
+					setTimeout(loop, delay);
+				});
+			}
+			loop();
+		});
+	</script>
+</body>
+</html>

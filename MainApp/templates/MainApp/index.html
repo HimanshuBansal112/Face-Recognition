@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera</title>
+</head>
+<body>
+	<div id="capture" style="text-align:center;">
+		<h1>Save photo for face recognition</h1>
+		<video id="video" width="800" height="600" autoplay style="transform: scaleX(-1);"></video>
+		<canvas id="canvas" width="800" height="600" style="display: none;"></canvas>
+		<br>
+		<button id="snap">Capture</button>
+		<button id="reset">Reset</button>
+		<br>
+		<form id="uploadForm" method="POST" enctype="multipart/form-data">
+			{% csrf_token %}
+			<input type="hidden" name="image" id="imageData">
+			<input type="hidden" name="action" value="process">
+			<button type="submit" style="margin-top:5px;">Process</button>
+		</form>
+	</div>
+	<div id="fill" style="text-align:center;">
+		<canvas id="face"></canvas>
+		<br>
+		<label type="text" for="face_name">Enter the name: </label>
+		<input id="face_name" type="text" placeholder="Name">
+		<button id="store">Submit</button>
+	</div>
+	<p id="message" style="text-align:center;">
+	</p>
+	
+	<div style="display:none;">
+		<form id="face_data_send" method="POST">
+			{% csrf_token %}
+			<input type="hidden" name="face_names" id="face_name_data">
+			<input type="hidden" name="faces" id="face_photos">
+			<input type="hidden" name="action" value="store">
+			<button type="submit" id="face_data_submit">Submit</button>
+		</form>
+	</div>
+	
+	{{ data|json_script:"data" }}
+
+    <script>
+		document.addEventListener("DOMContentLoaded", function() {
+			const output = JSON.parse(document.getElementById("data").textContent);
+			const video = document.getElementById('video');
+			const canvas = document.getElementById('canvas');
+			const context = canvas.getContext('2d');
+			const imageData = document.getElementById('imageData');
+			
+			const face_canvas = document.getElementById('face');
+			const face_context = face_canvas.getContext('2d');
+			const face_name = document.getElementById('face_name');
+			
+			const step_1 = document.getElementById('capture');
+			const step_2 = document.getElementById('fill');
+			const step_3 = document.getElementById('message');
+			
+			let captured = false;
+			let index = null;
+			
+			let face_names = [""];
+			
+			function bindCameraCapture(video, canvas, imageData, snapBtn, resetBtn) {
+				const context = canvas.getContext('2d');
+				let captured = false;
+
+				navigator.mediaDevices.getUserMedia({ video: true })
+					.then(stream => video.srcObject = stream)
+					.catch(err => console.error("Camera error:", err));
+
+				snapBtn.addEventListener('click', () => {
+					if (!captured) {
+						context.save();
+						context.scale(-1, 1);
+						context.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+						context.restore();
+						imageData.value = canvas.toDataURL('image/png');
+						canvas.style.display = '';
+						video.style.display = 'none';
+						captured = true;
+					}
+				});
+				
+				resetBtn.addEventListener('click', () => {
+					captured = false;
+					canvas.style.display = 'none';
+					video.style.display = '';
+					imageData.value = '';
+					context.clearRect(0, 0, canvas.width, canvas.height);
+				});
+			}
+
+			
+			if (!output || (!output["uploaded"] && !output["finished"])) {
+				step_2.style.display = 'none';
+				step_3.style.display = 'none';
+				
+				bindCameraCapture(video, canvas, imageData, document.getElementById('snap'), document.getElementById('reset'));
+			}
+			else if (!output["finished"]) {
+				faces = output["output"];
+				if (faces.length == 0) {
+					step_2.style.display = 'none';
+					if (output["matching"]) {
+						step_3.textContent = "Matching faces found.";
+					}
+					else {
+						step_3.textContent = "No face found.";
+					}
+					bindCameraCapture(video, canvas, imageData, document.getElementById('snap'), document.getElementById('reset'));
+				}
+				else {
+					step_1.style.display = 'none';
+					step_3.style.display = 'none';
+					index = 0;
+					
+					const img = new Image();
+					img.onload = function () {
+					  // Set canvas size to match the image
+					  face_canvas.width = img.width;
+					  face_canvas.height = img.height;
+					  
+					  face_context.drawImage(img, 0, 0);
+					};
+					img.src = "data:image/png;base64," + faces[0];
+					
+					document.getElementById('store').addEventListener('click', () => {
+						face_names.push(face_name.value);
+						index += 1;
+						
+						if (index >= faces.length) {
+							step_2.style.display = 'none';
+							faces.unshift("");
+							document.getElementById("face_name_data").value = JSON.stringify(face_names);
+							document.getElementById("face_photos").value = JSON.stringify(faces);
+							document.getElementById("face_data_send").submit();
+						}
+						else {
+							img.src = "data:image/png;base64," + faces[index];
+							face_name.value = "";
+						}
+					});
+				}
+			}
+			else {
+				step_1.style.display = 'none';
+				step_2.style.display = 'none';
+				step_3.textContent = "Completed successfully";
+			}
+		});
+    </script>
+</body>
+</html>
