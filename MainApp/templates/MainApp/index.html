@@ -25,6 +25,7 @@
 		<label type="text" for="face_name">Enter the name: </label>
 		<input id="face_name" type="text" placeholder="Name">
 		<button id="store">Submit</button>
+		<button id="ignore">Ignore/Discard</button>
 	</div>
 	<p id="message" style="text-align:center;">
 	</p>
@@ -129,6 +130,22 @@
 					document.getElementById('store').addEventListener('click', () => {
 						face_names.push(face_name.value);
 						index += 1;
+						
+						if (index >= faces.length) {
+							step_2.style.display = 'none';
+							faces.unshift("");
+							document.getElementById("face_name_data").value = JSON.stringify(face_names);
+							document.getElementById("face_photos").value = JSON.stringify(faces);
+							document.getElementById("face_data_send").submit();
+						}
+						else {
+							img.src = "data:image/png;base64," + faces[index];
+							face_name.value = "";
+						}
+					});
+					
+					document.getElementById('ignore').addEventListener('click', () => {
+						faces.splice(index,1);
 						
 						if (index >= faces.length) {
 							step_2.style.display = 'none';
