@@ -22,6 +22,7 @@ def encode_image_to_base64(image_np):
 
 class Capture_Faces:
     def __init__(self):
+        print("Created")
         path="faces"
         isExist = os.path.exists(path)
         if not isExist:
@@ -36,6 +37,8 @@ class Capture_Faces:
         self.face_data = face_data
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.embed_model = InceptionResnetV1(pretrained='vggface2').to(self.device).eval()
+        assert len(self.face_data["img_data"].keys())==len(self.face_data["name_key"])
+        self.extract_emb()
 
     def face_check(self, img):
         faces=[]
@@ -68,14 +71,22 @@ class Capture_Faces:
         sim = cosine_similarity([emb1[0]], [emb2[0]])[0][0]
         return sim > 0.6
     
-    def face_comparison(self, face, tensor_img, ref_tensor_img):
+    def face_comparison(self, face, tensor_img, ref_emb):
         x,y,w,h=face
         emb = self.embedding(tensor_img[:,y:h,x:w])
-        ref_emb = self.embedding(ref_tensor_img)
         return self.similarity(emb, ref_emb)
-        
+    
+    def extract_emb(self):
+        self.embedding_faces = dict()
+        for i in range(len(self.face_data["name_key"])):
+            if str(i) not in self.face_data["img_data"] or not self.face_data["img_data"][str(i)]:
+                raise ValueError(f"Corrupted data for name: {self.face_data['name_key'][i]}")
+            ref_tensor_img = read_image(self.face_data["img_data"][str(i)])
+            self.embedding_faces[str(i)] = self.embedding(ref_tensor_img)
+    
     def extract_eligible_faces(self, frame):
         assert len(self.face_data["img_data"].keys())==len(self.face_data["name_key"])
+        assert len(self.embedding_faces.keys())==len(self.face_data["name_key"])
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         eligible_faces = []
         matching = False
@@ -100,9 +111,8 @@ class Capture_Faces:
                         raise ValueError(f"Corrupted data for name: {self.face_data['name_key'][i]}")
                     frame_tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).contiguous()
                     frame_tensor = frame_tensor.to(torch.uint8)
-                    ref_image_tensor = read_image(self.face_data["img_data"][str(i)])
-                    ref_image = cv2.imread(self.face_data["img_data"][str(i)], 1)
-                    if self.face_comparison(face, frame_tensor, ref_image_tensor):
+                    ref_emb = self.embedding_faces[str(i)]
+                    if self.face_comparison(face, frame_tensor, ref_emb):
                         face_match = True
                 if not(face_match):
                     eligible_faces.append(encode_image_to_base64(frame[y:h, x:w]))
@@ -113,6 +123,7 @@ class Capture_Faces:
         
     def video(self, frame):
         assert len(self.face_data["img_data"].keys())==len(self.face_data["name_key"])
+        assert len(self.embedding_faces.keys())==len(self.face_data["name_key"])
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         try:
             faces = self.face_check(frame)
@@ -131,10 +142,9 @@ class Capture_Faces:
                 frame_tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).contiguous()
                 frame_tensor = frame_tensor.to(torch.uint8)
                 
-                ref_image_tensor = read_image(self.face_data["img_data"][str(i)])
-                ref_image = cv2.imread(self.face_data["img_data"][str(i)], 1)
+                ref_emb = self.embedding_faces[str(i)]
                 
-                if self.face_comparison(face, frame_tensor, ref_image_tensor):
+                if self.face_comparison(face, frame_tensor, ref_emb):
                     x,y,w,h = face
                     
                     font = cv2.FONT_HERSHEY_SIMPLEX
