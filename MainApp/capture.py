@@ -148,7 +148,7 @@ class Capture_Faces:
                     x,y,w,h = face
                     
                     font = cv2.FONT_HERSHEY_SIMPLEX
-                    font_scale = 0.6
+                    font_scale = 0.9
                     thickness = 2
                     (text_width, text_height), baseline = cv2.getTextSize(self.face_data["name_key"][i], font, font_scale, thickness)
                     text_x = x + (w - x - text_width) // 2
