@@ -38,7 +38,13 @@ class Capture_Faces:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.embed_model = InceptionResnetV1(pretrained='vggface2').to(self.device).eval()
         assert len(self.face_data["img_data"].keys())==len(self.face_data["name_key"])
-        self.extract_emb()
+        
+        if os.path.exists("faces/face_embeddings.pt"):
+            self.embedding_faces = torch.load("faces/face_embeddings.pt", map_location=self.device)
+        else:
+            self.embedding_faces = {}
+            torch.save(self.embedding_faces, "faces/face_embeddings.pt")
+        #self.extract_emb()
 
     def face_check(self, img):
         faces=[]
@@ -83,6 +89,17 @@ class Capture_Faces:
                 raise ValueError(f"Corrupted data for name: {self.face_data['name_key'][i]}")
             ref_tensor_img = read_image(self.face_data["img_data"][str(i)])
             self.embedding_faces[str(i)] = self.embedding(ref_tensor_img)
+        torch.save(self.embedding_faces, "faces/face_embeddings.pt")
+    
+    def update_emb(self):
+        for i in range(len(self.face_data["name_key"])):
+            if str(i) not in self.face_data["img_data"] or not self.face_data["img_data"][str(i)]:
+                raise ValueError(f"Corrupted data for name: {self.face_data['name_key'][i]}")
+            if str(i) in self.embedding_faces:
+                continue
+            ref_tensor_img = read_image(self.face_data["img_data"][str(i)])
+            self.embedding_faces[str(i)] = self.embedding(ref_tensor_img)
+        torch.save(self.embedding_faces, "faces/face_embeddings.pt")
     
     def extract_eligible_faces(self, frame):
         assert len(self.face_data["img_data"].keys())==len(self.face_data["name_key"])

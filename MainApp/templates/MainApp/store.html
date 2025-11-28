@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Camera — Face Save</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    .fade-enter { opacity: 0; transform: translateY(6px); }
+    .fade-enter-active { transition: opacity .25s ease, transform .25s ease; opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased">
+
+  <main class="min-h-screen flex items-start justify-center py-12 px-4">
+    <div class="w-full max-w-4xl">
+
+      <section id="capture" class="bg-white rounded-2xl shadow-md p-6 mb-6">
+
+          <h1 class="text-3xl font-semibold text-center mb-6">Save photo for face recognition</h1>
+
+          <div class="flex flex-col items-center space-y-4">
+            <div class="relative rounded-xl overflow-hidden bg-black border border-gray-300"
+                 style="width: 800px; max-width: 95vw;">
+
+              <video id="video"
+                     width="800" height="600"
+                     autoplay
+                     playsinline
+                     class="-scale-x-100 z-10 pointer-events-none"></video>
+
+              <canvas id="canvas"
+                    width="800" height="600"
+                    class="hidden z-20"></canvas>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <div id="loader" class="hidden">
+                <div class="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full"></div>
+              </div>
+              <p id="message" class="text-gray-700 text-lg"></p>
+            </div>
+
+            <form id="uploadForm" method="POST" enctype="multipart/form-data" class="flex gap-4 flex-wrap justify-center items-center">
+              {% csrf_token %}
+              <input type="hidden" name="image" id="imageData">
+              <input type="hidden" name="action" value="process">
+
+              <button id="snap" type="button" 
+                      class="px-6 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition">
+                Capture
+              </button>
+
+              <button id="reset" type="button" 
+                      class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg shadow hover:bg-gray-300 transition">
+                Reset
+              </button>
+
+              <button type="submit"
+                      class="px-6 py-2 bg-emerald-600 text-white rounded-lg shadow hover:bg-emerald-700 transition">
+                Process
+              </button>
+            </form>
+            <div style="display:none;">
+                <form id="face_data_send" method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="face_names" id="face_name_data">
+                    <input type="hidden" name="faces" id="face_photos">
+                    <input type="hidden" name="action" value="store">
+                    <button type="submit" id="face_data_submit">Submit</button>
+                </form>
+            </div>
+          </div>
+        </section>
+
+      <section id="fill" class="bg-white rounded-2xl shadow-md p-6 mb-6">
+        <div class="max-w-xl mx-auto space-y-4 text-center">
+          <canvas id="face" class="mx-auto rounded-lg shadow-sm bg-gray-50 border border-gray-200"></canvas>
+
+          <label for="face_name" class="sr-only">Name for face</label>
+          <input id="face_name" type="text" placeholder="Name" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-blue-200">
+
+          <div class="flex gap-3 justify-center">
+            <button id="store" class="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow transition">Submit</button>
+            <button id="ignore" class="px-6 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 shadow transition">Ignore/Discard</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  {{ data|json_script:"data" }}
+
+   <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const output = JSON.parse(document.getElementById("data").textContent);
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            const imageData = document.getElementById('imageData');
+            
+            const face_canvas = document.getElementById('face');
+            const face_context = face_canvas.getContext('2d');
+            const face_name = document.getElementById('face_name');
+            
+            const step_1 = document.getElementById('capture');
+            const step_2 = document.getElementById('fill');
+            const step_3 = document.getElementById('message');
+            
+            let captured = false;
+            let index = null;
+            
+            let face_names = [""];
+            
+            function bindCameraCapture(video, canvas, imageData, snapBtn, resetBtn) {
+                const context = canvas.getContext('2d');
+                let captured = false;
+
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(stream => video.srcObject = stream)
+                    .catch(err => console.error("Camera error:", err));
+
+                snapBtn.addEventListener('click', () => {
+                    if (!captured) {
+                        context.save();
+                        context.scale(-1, 1);
+                        context.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+                        context.restore();
+                        imageData.value = canvas.toDataURL('image/png');
+                        canvas.classList.remove('hidden');
+                        video.classList.add('hidden');
+                        captured = true;
+                    }
+                });
+                
+                resetBtn.addEventListener('click', () => {
+                    captured = false;
+                    canvas.classList.add('hidden');
+                    video.classList.remove('hidden');
+                    imageData.value = '';
+                    context.clearRect(0, 0, canvas.width, canvas.height);
+                });
+            }
+
+            
+            if (!output || (!output["uploaded"] && !output["finished"])) {
+                step_2.style.display = 'none';
+                step_3.style.display = 'none';
+                
+                bindCameraCapture(video, canvas, imageData, document.getElementById('snap'), document.getElementById('reset'));
+            }
+            else if (!output["finished"]) {
+                faces = output["output"];
+                if (faces.length == 0) {
+                    step_2.style.display = 'none';
+                    if (output["matching"]) {
+                        step_3.textContent = "Matching faces found.";
+                    }
+                    else {
+                        step_3.textContent = "No face found.";
+                    }
+                    bindCameraCapture(video, canvas, imageData, document.getElementById('snap'), document.getElementById('reset'));
+                }
+                else {
+                    step_1.style.display = 'none';
+                    step_3.style.display = 'none';
+                    index = 0;
+                    
+                    const img = new Image();
+                    img.onload = function () {
+                      face_canvas.width = img.width;
+                      face_canvas.height = img.height;
+                      
+                      face_context.drawImage(img, 0, 0);
+                    };
+                    img.src = "data:image/png;base64," + faces[0];
+                    
+                    document.getElementById('store').addEventListener('click', () => {
+                        face_names.push(face_name.value);
+                        index += 1;
+                        
+                        if (index >= faces.length) {
+                            step_2.style.display = 'none';
+                            faces.unshift("");
+                            document.getElementById("face_name_data").value = JSON.stringify(face_names);
+                            document.getElementById("face_photos").value = JSON.stringify(faces);
+                            document.getElementById("face_data_send").submit();
+                        }
+                        else {
+                            img.src = "data:image/png;base64," + faces[index];
+                            face_name.value = "";
+                        }
+                    });
+                    
+                    document.getElementById('ignore').addEventListener('click', () => {
+                        faces.splice(index,1);
+                        
+                        if (index >= faces.length) {
+                            step_2.style.display = 'none';
+                            faces.unshift("");
+                            document.getElementById("face_name_data").value = JSON.stringify(face_names);
+                            document.getElementById("face_photos").value = JSON.stringify(faces);
+                            document.getElementById("face_data_send").submit();
+                        }
+                        else {
+                            img.src = "data:image/png;base64," + faces[index];
+                            face_name.value = "";
+                        }
+                    });
+                }
+            }
+            else {
+                step_1.style.display = 'none';
+                step_2.style.display = 'none';
+                step_3.textContent = "Completed successfully";
+            }
+        });
+    </script>
+
+</body>
+</html>

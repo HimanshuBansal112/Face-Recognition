@@ -1,72 +1,97 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Camera</title>
-</head>
-<body>
-	<div id="capture" style="text-align:center;">
-		<h1>Face recognition</h1>
-		<video id="video_hidden" width="800" height="600" autoplay style="transform: scaleX(-1);display:none;"></video>
-		<canvas id="canvas_hidden" width="800" height="600" style="display:none;"></canvas>
-		<canvas id="canvas" width="800" height="600"></canvas>
-		
-		<input type="hidden" id="csrf_token" value="{{ csrf_token }}">
-	</div>
-	<script>
-		document.addEventListener("DOMContentLoaded", function() {
-			const video_hidden = document.getElementById('video_hidden');
-			const canvas_hidden = document.getElementById('canvas_hidden');
-			const context_hidden = canvas_hidden.getContext('2d');
-			
-			const canvas = document.getElementById('canvas');
-			const context = canvas.getContext('2d');
-			
-			const csrfToken = document.getElementById('csrf_token').value;
-			
-			navigator.mediaDevices.getUserMedia({ video: true })
-					.then(stream => video_hidden.srcObject = stream)
-					.catch(err => console.error("Camera error:", err));
-			
-			const img = new Image();
-			img.onload = function () {
-			    canvas.width = img.width;
-			    canvas.height = img.height;
-			  
-			    context.drawImage(img, 0, 0);
-			};
-			
-			function loop() {
-				context_hidden.clearRect(0, 0, canvas_hidden.width, canvas_hidden.height);
-				context_hidden.save();
-				context_hidden.scale(-1, 1);
-				context_hidden.drawImage(video_hidden, -canvas_hidden.width, 0, canvas_hidden.width, canvas_hidden.height);
-				context_hidden.restore();
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Camera - Face Recognition</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  </head>
+  <body class="bg-gray-50 flex flex-col items-center justify-start min-h-screen py-10 text-gray-800">
+  
+    <h1 class="text-4xl font-bold mb-6 text-center">Face Recognition</h1>
+  
+    <div class="relative" style="width:800px; max-width:95vw;">
+      <video id="video_hidden" autoplay class="hidden"></video>
+      <canvas id="canvas_hidden" width="800" height="600" class="hidden"></canvas>
+      <canvas id="canvas" width="800" height="600"
+              class="rounded-xl shadow-lg border border-gray-300 block mx-auto"></canvas>
+    </div>
+  
+    <p class="mt-4 text-gray-600 text-center text-sm">
+      Camera feed is mirrored. Ensure good lighting.
+    </p>
+  
+    <input type="hidden" id="csrf_token" value="{{ csrf_token }}">
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const video_hidden = document.getElementById('video_hidden');
+            const canvas_hidden = document.getElementById('canvas_hidden');
+            const context_hidden = canvas_hidden.getContext('2d');
+            
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            
+            const csrfToken = document.getElementById('csrf_token').value;
+            
+            navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(stream => {
+                        video_hidden.srcObject = stream;
+                        video_hidden.onloadedmetadata = () => {
+                            video_hidden.play();
+                            loop(); 
+                        };
+                    })
+                    .catch(err => console.error("Camera error:", err));
+            
+            const img = new Image();
+            img.onload = function () {
+                if (canvas.width !== img.width || canvas.height !== img.height) {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                }
+              
+                context.drawImage(img, 0, 0);
+            };
+            
+            let isProcessing = false;
 
-				fetch('/process', {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						'X-CSRFToken': csrfToken
-					},
-					body: JSON.stringify({ image: canvas_hidden.toDataURL('image/png') })
-				})
-				.then(response => {
-					if (!response.ok) throw new Error("Network error");
-					return response.json();
-				})
-				.then(data => {
-					img.src = "data:image/png;base64," + data.output;
-				})
-				.catch(error => {
-					console.error('Error:', error);
-				})
-				.finally(() => {
-					const delay = 3;
-					setTimeout(loop, delay);
-				});
-			}
-			loop();
-		});
-	</script>
+            function loop() {
+                context_hidden.clearRect(0, 0, canvas_hidden.width, canvas_hidden.height);
+                context_hidden.save();
+                context_hidden.scale(-1, 1);
+                context_hidden.drawImage(video_hidden, -canvas_hidden.width, 0, canvas_hidden.width, canvas_hidden.height);
+                context_hidden.restore();
+                
+                if (!isProcessing) {
+                    isProcessing = true;
+                    canvas_hidden.toBlob(blob => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            fetch('/process', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': csrfToken
+                                },
+                                body: JSON.stringify({ image: reader.result.split(',')[1] })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                img.src = "data:image/jpeg;base64," + data.output;
+                            })
+                            .catch(console.error)
+                            .finally(() => { isProcessing = false; });
+                        };
+                        reader.readAsDataURL(blob);
+                    }, 'image/jpeg', 0.5);
+                }
+
+                requestAnimationFrame(loop);
+            }
+
+            loop();
+        });
+    </script>
 </body>
 </html>
