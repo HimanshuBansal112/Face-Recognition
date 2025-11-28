@@ -28,16 +28,16 @@ def store(request):
                     valid = True
                 
                     output, matching = capture_faces.extract_eligible_faces(frame)
-                    return render(request, "MainApp/index.html", {"data":{"uploaded": valid, "output": output, "matching": matching, "finished": False}})
+                    return render(request, "MainApp/store.html", {"data":{"uploaded": valid, "output": output, "matching": matching, "finished": False}})
             
-            return render(request, "MainApp/index.html", {"data":{"uploaded": valid, "finished": False}})
+            return render(request, "MainApp/store.html", {"data":{"uploaded": valid, "finished": False}})
         elif (action == "store"):
             names = json.loads(request.POST.get("face_names"))
             faces = json.loads(request.POST.get("faces"))
             save_faces(names[1:], faces[1:])
             capture_faces = Capture_Faces()
             capture_faces.update_emb()
-            return render(request, "MainApp/index.html", {"data":{"uploaded": True, "finished": True}})
+            return render(request, "MainApp/store.html", {"data":{"uploaded": True, "finished": True}})
     return render(request, "MainApp/store.html", {"data":""})
 
 def display(request):
