@@ -23,6 +23,8 @@ def encode_image_to_base64(image_np):
 class Capture_Faces:
     def __init__(self):
         print("Created")
+        self.two_face_match_threshold = 0.6
+        self.human_face_confidence = 0.5
         path="faces"
         isExist = os.path.exists(path)
         if not isExist:
@@ -56,7 +58,7 @@ class Capture_Faces:
         detections = net.forward()
         for i in range(detections.shape[2]):
           confidence = detections[0, 0, i, 2]
-          if confidence > 0.5:  # confidence threshold
+          if confidence > self.human_face_confidence:  #Confidence that the face is of human
               box = detections[0, 0, i, 3:7] * [w, h, w, h]
               faces.append(box.astype("int"))
         if len(faces)==0:
@@ -64,23 +66,35 @@ class Capture_Faces:
         return faces
 
     def embedding(self, img):
-        emb_final=[]
         face = resize(img, [160, 160])
         face = face.float() / 255.0
         face = (face - 0.5) / 0.5
         face = face.unsqueeze(0).to(self.device)
-        emb = self.embed_model(face).detach().cpu().numpy()
-        emb_final.append(emb.squeeze())
-        return emb_final
+        emb = self.embed_model(face).detach()
+        emb = emb / emb.norm()
+        return emb.cpu()
     
     def similarity(self, emb1, emb2):
-        sim = cosine_similarity([emb1[0]], [emb2[0]])[0][0]
-        return sim > 0.6
+        sim = torch.nn.functional.cosine_similarity(emb1, emb2)
+        return sim > self.two_face_match_threshold #It is being used to ensure that two faces match
     
-    def face_comparison(self, face, tensor_img, ref_emb):
-        x,y,w,h=face
-        emb = self.embedding(tensor_img[:,y:h,x:w])
-        return self.similarity(emb, ref_emb)
+    def embedding_with_crop(self, face, tensor_img):
+        x1,y1,x2,y2 = face
+        _, H, W = tensor_img.shape
+        
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(W, x2)
+        y2 = min(H, y2)
+
+        if x2 <= x1 or y2 <= y1:
+            return False #False is 0 so it will work like "no face found"
+            
+        emb = self.embedding(tensor_img[:,y1:y2,x1:x2])
+        return emb
+    
+    def face_comparison(self, original_emb, ref_emb):
+        return self.similarity(original_emb, ref_emb)
     
     def extract_emb(self):
         self.embedding_faces = dict()
@@ -117,22 +131,29 @@ class Capture_Faces:
         
         if len(self.face_data["name_key"])==0:
             for face in faces:
-                x,y,w,h = face
-                eligible_faces.append(encode_image_to_base64(frame[y:h, x:w]))
+                x1,y1,x2,y2 = face
+                x1 = max(0, x1)
+                y1 = max(0, y1)
+                x2 = min(frame.shape[1], x2)
+                y2 = min(frame.shape[0], y2)
+                if x2 <= x1 or y2 <= y1:
+                    continue
+                eligible_faces.append(encode_image_to_base64(frame[y1:y2, x1:x2]))
         else:
+            frame_tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).contiguous()
+            frame_tensor = frame_tensor.to(torch.uint8)
             for face in faces:
-                x,y,w,h = face
+                x1,y1,x2,y2 = face
                 face_match = False
+                frame_face = self.embedding_with_crop(face, frame_tensor)
                 for i in range(len(self.face_data["name_key"])):
                     if str(i) not in self.face_data["img_data"] or not self.face_data["img_data"][str(i)]:
                         raise ValueError(f"Corrupted data for name: {self.face_data['name_key'][i]}")
-                    frame_tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).contiguous()
-                    frame_tensor = frame_tensor.to(torch.uint8)
                     ref_emb = self.embedding_faces[str(i)]
-                    if self.face_comparison(face, frame_tensor, ref_emb):
+                    if self.face_comparison(frame_face, ref_emb):
                         face_match = True
                 if not(face_match):
-                    eligible_faces.append(encode_image_to_base64(frame[y:h, x:w]))
+                    eligible_faces.append(encode_image_to_base64(frame[y1:y2, x1:x2]))
         if len(faces)>0 and len(eligible_faces)==0:
             matching = True
         
@@ -152,26 +173,28 @@ class Capture_Faces:
         
         output_frame = frame.copy()
         
+        frame_tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).contiguous()
+        frame_tensor = frame_tensor.to(torch.uint8)
+        
         for face in faces:
+            frame_face = self.embedding_with_crop(face, frame_tensor)
             for i in range(len(self.face_data["name_key"])):
                 if str(i) not in self.face_data["img_data"] or not self.face_data["img_data"][str(i)]:
                     raise ValueError(f"Corrupted data for name: {self.face_data['name_key'][i]}")
-                frame_tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).contiguous()
-                frame_tensor = frame_tensor.to(torch.uint8)
                 
                 ref_emb = self.embedding_faces[str(i)]
                 
-                if self.face_comparison(face, frame_tensor, ref_emb):
-                    x,y,w,h = face
+                if self.face_comparison(frame_face, ref_emb):
+                    x1,y1,x2,y2 = face
                     
                     font = cv2.FONT_HERSHEY_SIMPLEX
                     font_scale = 0.9
                     thickness = 2
                     (text_width, text_height), baseline = cv2.getTextSize(self.face_data["name_key"][i], font, font_scale, thickness)
-                    text_x = x + (w - x - text_width) // 2
-                    text_y = h + text_height + 5
+                    text_x = x1 + (x2 - x1 - text_width) // 2
+                    text_y = y2 + text_height + 5
                     
-                    cv2.rectangle(output_frame, (x, y), (w, h), (0, 255, 0), 2)
+                    cv2.rectangle(output_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                     cv2.putText(output_frame, self.face_data["name_key"][i], (text_x, text_y), font, font_scale, (0, 255, 0), thickness)
                     
         return encode_image_to_base64(output_frame)
