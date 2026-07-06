@@ -4,14 +4,26 @@ import json
 import base64
 
 import cv2
-from sklearn.metrics.pairwise import cosine_similarity
-import torch
-from torchvision.io import read_image
-from torchvision.transforms.functional import resize
-from facenet_pytorch import InceptionResnetV1
 
-net = cv2.dnn.readNetFromCaffe(
-    "Files/deploy.prototxt", "Files/res10_300x300_ssd_iter_140000.caffemodel"
+
+face_detection_score_threshold = 0.8
+face_detection_nms_threshold = 0.3
+face_detection_top_k = 5000
+two_face_match_threshold = 0.30
+
+
+net = cv2.FaceDetectorYN.create(
+    "Files/face_detection_yunet_2023mar.onnx",
+    "",
+    (320, 320),
+    face_detection_score_threshold,
+    face_detection_nms_threshold,
+    face_detection_top_k,
+)
+
+recognizer = cv2.FaceRecognizerSF.create(
+    "Files/face_recognition_sface_2021dec.onnx",
+    "",
 )
 
 
@@ -23,8 +35,7 @@ def encode_image_to_base64(image_np):
 class Capture_Faces:
     def __init__(self):
         print("Created")
-        self.two_face_match_threshold = 0.6
-        self.human_face_confidence = 0.5
+        self.two_face_match_threshold = two_face_match_threshold
         path = "faces"
         isExist = os.path.exists(path)
         if not isExist:
@@ -37,68 +48,45 @@ class Capture_Faces:
             else:
                 face_data = {"name_key": [], "img_data": {}}
         self.face_data = face_data
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.embed_model = (
-            InceptionResnetV1(pretrained="vggface2").to(self.device).eval()
-        )
         assert len(self.face_data["img_data"].keys()) == len(self.face_data["name_key"])
 
-        if os.path.exists("faces/face_embeddings.pt"):
-            self.embedding_faces = torch.load(
-                "faces/face_embeddings.pt", map_location=self.device
-            )
+        if os.path.exists("faces/face_embeddings_sface.npz"):
+            data = np.load("faces/face_embeddings_sface.npz")
+            self.embedding_faces = {i: data[i] for i in data.files}
         else:
             self.embedding_faces = {}
-            torch.save(self.embedding_faces, "faces/face_embeddings.pt")
-        # self.extract_emb()
+        if len(self.embedding_faces.keys()) != len(self.face_data["name_key"]):
+            self.extract_emb()
 
     def face_check(self, img):
-        faces = []
         h, w = img.shape[:2]
+        net.setInputSize((w, h))
+        _, faces = net.detect(img)
 
-        blob = cv2.dnn.blobFromImage(img, 1.0, (300, 300), (104.0, 177.0, 123.0))
-        net.setInput(blob)
-        detections = net.forward()
-        for i in range(detections.shape[2]):
-            confidence = detections[0, 0, i, 2]
-            if (
-                confidence > self.human_face_confidence
-            ):  # Confidence that the face is of human
-                box = detections[0, 0, i, 3:7] * [w, h, w, h]
-                faces.append(box.astype("int"))
-        if len(faces) == 0:
+        if faces is None or len(faces) == 0:
             raise Exception("No face found")
         return faces
 
-    def embedding(self, img):
-        face = resize(img, [160, 160])
-        face = face.float() / 255.0
-        face = (face - 0.5) / 0.5
-        face = face.unsqueeze(0).to(self.device)
-        emb = self.embed_model(face).detach()
-        emb = emb / emb.norm()
-        return emb.cpu()
+    def embedding(self, img, face):
+        return recognizer.feature(recognizer.alignCrop(img, face))
 
     def similarity(self, emb1, emb2):
-        sim = torch.nn.functional.cosine_similarity(emb1, emb2)
-        return (
-            sim > self.two_face_match_threshold
-        )  # It is being used to ensure that two faces match
+        sim = recognizer.match(emb1, emb2, 0)
+        return sim >= self.two_face_match_threshold
 
-    def embedding_with_crop(self, face, tensor_img):
-        x1, y1, x2, y2 = face
-        _, H, W = tensor_img.shape
-
+    def embedding_with_crop(self, face, img):
+        x1, y1, x2, y2 = face[:4].astype(int)
+        x2 += x1
+        y2 += y1
         x1 = max(0, x1)
         y1 = max(0, y1)
-        x2 = min(W, x2)
-        y2 = min(H, y2)
+        x2 = min(img.shape[1], x2)
+        y2 = min(img.shape[0], y2)
 
         if x2 <= x1 or y2 <= y1:
-            return False  # False is 0 so it will work like "no face found"
+            return False
 
-        emb = self.embedding(tensor_img[:, y1:y2, x1:x2])
-        return emb
+        return self.embedding(img, face)
 
     def face_comparison(self, original_emb, ref_emb):
         return self.similarity(original_emb, ref_emb)
@@ -113,9 +101,15 @@ class Capture_Faces:
                 raise ValueError(
                     f"Corrupted data for name: {self.face_data['name_key'][i]}"
                 )
-            ref_tensor_img = read_image(self.face_data["img_data"][str(i)])
-            self.embedding_faces[str(i)] = self.embedding(ref_tensor_img)
-        torch.save(self.embedding_faces, "faces/face_embeddings.pt")
+            ref_img = cv2.imread(self.face_data["img_data"][str(i)])
+            if ref_img is None:
+                raise ValueError(
+                    f"Could not read image for name: {self.face_data['name_key'][i]}"
+                )
+            faces = self.face_check(ref_img)
+            best_face = max(faces, key=lambda f: f[-1])
+            self.embedding_faces[str(i)] = self.embedding(ref_img, best_face)
+        np.savez("faces/face_embeddings_sface.npz", **self.embedding_faces)
 
     def update_emb(self):
         for i in range(len(self.face_data["name_key"])):
@@ -128,14 +122,19 @@ class Capture_Faces:
                 )
             if str(i) in self.embedding_faces:
                 continue
-            ref_tensor_img = read_image(self.face_data["img_data"][str(i)])
-            self.embedding_faces[str(i)] = self.embedding(ref_tensor_img)
-        torch.save(self.embedding_faces, "faces/face_embeddings.pt")
+            ref_img = cv2.imread(self.face_data["img_data"][str(i)])
+            if ref_img is None:
+                raise ValueError(
+                    f"Could not read image for name: {self.face_data['name_key'][i]}"
+                )
+            faces = self.face_check(ref_img)
+            best_face = max(faces, key=lambda f: f[-1])
+            self.embedding_faces[str(i)] = self.embedding(ref_img, best_face)
+        np.savez("faces/face_embeddings_sface.npz", **self.embedding_faces)
 
     def extract_eligible_faces(self, frame):
         assert len(self.face_data["img_data"].keys()) == len(self.face_data["name_key"])
         assert len(self.embedding_faces.keys()) == len(self.face_data["name_key"])
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         eligible_faces = []
         matching = False
         try:
@@ -148,7 +147,9 @@ class Capture_Faces:
 
         if len(self.face_data["name_key"]) == 0:
             for face in faces:
-                x1, y1, x2, y2 = face
+                x1, y1, x2, y2 = face[:4].astype(int)
+                x2 += x1
+                y2 += y1
                 x1 = max(0, x1)
                 y1 = max(0, y1)
                 x2 = min(frame.shape[1], x2)
@@ -157,12 +158,18 @@ class Capture_Faces:
                     continue
                 eligible_faces.append(encode_image_to_base64(frame[y1:y2, x1:x2]))
         else:
-            frame_tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).contiguous()
-            frame_tensor = frame_tensor.to(torch.uint8)
             for face in faces:
-                x1, y1, x2, y2 = face
+                x1, y1, x2, y2 = face[:4].astype(int)
+                x2 += x1
+                y2 += y1
+                x1 = max(0, x1)
+                y1 = max(0, y1)
+                x2 = min(frame.shape[1], x2)
+                y2 = min(frame.shape[0], y2)
+                if x2 <= x1 or y2 <= y1:
+                    continue
                 face_match = False
-                frame_face = self.embedding_with_crop(face, frame_tensor)
+                frame_face = self.embedding_with_crop(face, frame)
                 for i in range(len(self.face_data["name_key"])):
                     if (
                         str(i) not in self.face_data["img_data"]
@@ -184,7 +191,6 @@ class Capture_Faces:
     def video(self, frame):
         assert len(self.face_data["img_data"].keys()) == len(self.face_data["name_key"])
         assert len(self.embedding_faces.keys()) == len(self.face_data["name_key"])
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         try:
             faces = self.face_check(frame)
         except Exception as e:
@@ -195,11 +201,8 @@ class Capture_Faces:
 
         output_frame = frame.copy()
 
-        frame_tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).contiguous()
-        frame_tensor = frame_tensor.to(torch.uint8)
-
         for face in faces:
-            frame_face = self.embedding_with_crop(face, frame_tensor)
+            frame_face = self.embedding_with_crop(face, frame)
             for i in range(len(self.face_data["name_key"])):
                 if (
                     str(i) not in self.face_data["img_data"]
@@ -212,7 +215,13 @@ class Capture_Faces:
                 ref_emb = self.embedding_faces[str(i)]
 
                 if self.face_comparison(frame_face, ref_emb):
-                    x1, y1, x2, y2 = face
+                    x1, y1, x2, y2 = face[:4].astype(int)
+                    x2 += x1
+                    y2 += y1
+                    x1 = max(0, x1)
+                    y1 = max(0, y1)
+                    x2 = min(frame.shape[1], x2)
+                    y2 = min(frame.shape[0], y2)
 
                     font = cv2.FONT_HERSHEY_SIMPLEX
                     font_scale = 0.9
