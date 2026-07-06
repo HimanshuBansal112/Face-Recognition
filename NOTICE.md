@@ -5,7 +5,7 @@
 This file provides attribution notices for components included in this project.
 
 **Face recognition**  
-Copyright (c) 2025 Himanshu Bansal
+Copyright (c) 2025-2026 Himanshu Bansal
 
 This project is licensed under the Apache License, Version 2.0.  
 A copy of the license is available in the `LICENSE` file in the root of this repository.
